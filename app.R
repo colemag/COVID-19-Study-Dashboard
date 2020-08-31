@@ -107,7 +107,6 @@ border-top-color:#666666;
                box(title = "Tube Report Selection", status = "success", width = 3,
                  dateInput("dateTube", "What collection date would you like to export for?"),
                  uiOutput("TubeParticipantCheckbox"),
-                 verbatimTextOutput("testing"),
                  checkboxInput("PBMCnumtube", "PBMCs for these patients?", value = T),
                  uiOutput("PBMCsSubject"),
                      numericInput("WholeBloodnumtube", "How many tubes of Whole Blood?", value = 1),
@@ -586,13 +585,6 @@ server <- shinyServer(function(input, output) {
         numericInput((paste0('PBMCsSubject', i)), label = (paste0('How many tubes of PBMCs for participant ',  groups1[[i]], "?")), value = 10)
       })
     }
-  })
-
-  output$testing <- renderText({
-    out <- datasetOuttimeline()
-    out <- out[ out$`Date Scheduled` == input$dateTube, ]
-    groups <- unique(out$`Subject ID`)
-    groups1 <- groups[groups %in% input$TubeParticipantCheckbox]
   })
 
   output$TubeParticipantCheckbox <- renderUI({
