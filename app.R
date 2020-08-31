@@ -11,6 +11,7 @@ library(vistime)
 library(DT)
 library(ggpubr)
 library(ggplot2)
+library(pheatmap)
 
 
 ui <- dashboardPage(skin = "blue",
@@ -23,6 +24,7 @@ ui <- dashboardPage(skin = "blue",
       menuItem("Main Dash and Upload", tabName = "maindash", icon = icon("dashboard")),
       menuItem("Patient Timeline", tabName = "timeline", icon = icon("calendar")),
       menuItem("Study Overviews", tabName = "studyoverview", icon = icon("chart-bar")),
+      menuItem("Participant Heatmap", tabName = "participantheatmap"),
       menuItem("REDBar Barcoding App", tabName = "barcodes", icon = icon("barcode")),
       menuItem("REDBar Tube Report", tabName = "tubereport", icon = icon("vial")),
       menuItem("Important Documents", tabName = "importantdocs", icon = icon("file-alt"))
@@ -55,9 +57,11 @@ border-top-color:#666666;
               checkboxInput(inputId = "ltf", label = "Remove Loss to Follow Up Patients?", value = T),
               fileInput("datafile", "Upload Janelle's file",
                         accept = c("text/csv","text/comma-separated-values,text/plain", ".csv", ".xlsx", ".xlx"))
-            )
+            ), tableOutput("BabsonTable")
+
             ),
     tabItem(tabName = "timeline",
+            fluidRow(
             h2("Interactive Timeline of Enrolled Participants"),
             box(width = 4, selectInput("cohorts_shown", "What cohorts do you want to look at?", choices = c("Longitudinal", "Convalescent", "Both"), selected = "Both")),
             box(width = 4, checkboxInput("removeFinished", "Remove participants who have completed week 4?", value = F)),
@@ -65,8 +69,8 @@ border-top-color:#666666;
             br(), br(),
             # actionButton("btn", "Center to today"),
             # timevisOutput("mytime"),
-            box(title = "Janelle's Study Progress File", status = "primary", collapsible = TRUE, width = 12)
-            ),
+            box(title = "Janelle's Study Progress File", status = "primary", collapsible = TRUE, width = 12, div(style = 'overflow-x: scroll', tableOutput('timelinedata')))
+            )),
     tabItem(tabName="studyoverview", h2("Study Overview and Enrollment"),
             valueBoxOutput("totalDrawsBox"),
             valueBoxOutput("totalNumParticipantsBox"),
@@ -102,7 +106,9 @@ border-top-color:#666666;
             fluidRow(
                box(title = "Tube Report Selection", status = "success", width = 3,
                  dateInput("dateTube", "What collection date would you like to export for?"),
-                 checkboxInput("PBMCnumtube", "PBMCs?", value = T),
+                 uiOutput("TubeParticipantCheckbox"),
+                 verbatimTextOutput("testing"),
+                 checkboxInput("PBMCnumtube", "PBMCs for these patients?", value = T),
                  uiOutput("PBMCsSubject"),
                      numericInput("WholeBloodnumtube", "How many tubes of Whole Blood?", value = 1),
                      numericInput("Serumnumtube", "How many tubes of Serum for Us?", value = 6),
@@ -124,7 +130,10 @@ border-top-color:#666666;
             tags$a(href="https://austin.maps.arcgis.com/apps/opsdashboard/index.html#/39e4f8d4acb0433baae6d15a931fa984",
                    "Travis County COVID-19 Dashboard"), br(),
             tags$a(href="https://www.ncbi.nlm.nih.gov/research/coronavirus/",
-                   "NIH COVID-19 Literature Database"))
+                   "NIH COVID-19 Literature Database")),
+    tabItem(tabName = "participantheatmap", h2("Participant Heatmap"),
+            checkboxInput("heatmapconval", "Remove convalescent participants?", value = T),
+            plotOutput("patientheatmap"))
     )
 ))
 
@@ -275,6 +284,28 @@ server <- shinyServer(function(input, output) {
       vistime(data, show_labels = F, optimize_y = T)
     }
 
+  })
+##----------------------------- Heatmaps
+  output$patientheatmap <- renderPlot({
+    timelinedata <- timelinedata()
+    if(input$heatmapconval == T){
+      timelinedata <- timelinedata[timelinedata$Cohort != "Convalescent", ]
+    }
+    timelinedata <- timelinedata[, colnames(timelinedata) == "Subject ID" | colnames(timelinedata) == "Visit #" | colnames(timelinedata) == "Subject Sex" | colnames(timelinedata) == "Subject Age" | colnames(timelinedata) == "Severity"]
+    colnames(timelinedata) <- gsub("Subject ID", "Subject_ID", colnames(timelinedata))
+    colnames(timelinedata) <- gsub("Visit #", "Visit", colnames(timelinedata))
+    timelinedata$Visit <- as.character(timelinedata$Visit)
+    timelinedata$occured <- 1
+    datawide <- timelinedata %>%
+      pivot_wider(names_from = Visit, values_from = occured)
+    datawide <- as.data.frame(datawide)
+    datawide[is.na(datawide)] <- 0
+    rownames(datawide) <- datawide$Subject_ID
+    datawide <- datawide[,c(-1)]
+    datameta <- datawide[,1:3]
+    datawide <- datawide[,c(-1,-2,-3)]
+    plot1 <- pheatmap(datawide, cluster_rows = F, cluster_cols = F, show_rownames = T, annotation_row = datameta)
+    plot1
   })
 
 
@@ -430,6 +461,7 @@ server <- shinyServer(function(input, output) {
     colnames(middle) <- gsub("Subject Sex", "Subject.Sex", colnames(middle))
     colnames(middle) <- gsub("Subject Age", "Subject.Age", colnames(middle))
     middle <- middle[ middle$`Date Scheduled` == input$dateTube, ]
+    middle <- middle[middle$Subject.ID %in% input$TubeParticipantCheckbox,]
 
     if(input$PBMCnumtube == T){
       numberoftubes <- rep(NA, 1)
@@ -548,11 +580,27 @@ server <- shinyServer(function(input, output) {
     out <- datasetOuttimeline()
     out <- out[ out$`Date Scheduled` == input$dateTube, ]
     if(input$PBMCnumtube == T){
-      lapply(1:(length(unique(out$`Subject ID`))), function(i) {
-        groups <- unique(out$`Subject ID`)
-        numericInput((paste0('PBMCsSubject', i)), label = (paste0('How many tubes of PBMCs for participant ',  groups[[i]], "?")), value = 10)
+      groups <- unique(out$`Subject ID`)
+      groups1 <- groups[groups %in% input$TubeParticipantCheckbox]
+      lapply(1:(length(unique(groups1))), function(i) {
+        numericInput((paste0('PBMCsSubject', i)), label = (paste0('How many tubes of PBMCs for participant ',  groups1[[i]], "?")), value = 10)
       })
     }
+  })
+
+  output$testing <- renderText({
+    out <- datasetOuttimeline()
+    out <- out[ out$`Date Scheduled` == input$dateTube, ]
+    groups <- unique(out$`Subject ID`)
+    groups1 <- groups[groups %in% input$TubeParticipantCheckbox]
+  })
+
+  output$TubeParticipantCheckbox <- renderUI({
+    out <- datasetOuttimeline()
+    out <- out[ out$`Date Scheduled` == input$dateTube, ]
+
+      groups <- unique(out$`Subject ID`)
+      checkboxGroupInput(inputId = "TubeParticipantCheckbox", label = "Which participants should be printed", choices = groups, selected = groups)
 
   })
 
@@ -747,7 +795,7 @@ server <- shinyServer(function(input, output) {
     ggo <- ggbarplot(tableped, x = "Severitygrouping", y = "Participants",
                      label = TRUE, lab.col = "white", lab.pos = "in", fill = "Severity", color = "Severity") +
       scale_x_discrete(drop=FALSE) + scale_fill_manual(values=c("Asymptomatic" = "#24E794", "Mild" = "#41CCE5","Moderate" = "#E7D224",'Severe' = "#E78B24", "Critical" = "#E73924", "Checking" = "#A7A7A7")) +
-      ylim(0, (38)) + geom_hline(yintercept = 38, linetype="dashed", color = "red") + xlab("Study Grouping") +
+      ylim(0, (40)) + geom_hline(yintercept = 38, linetype="dashed", color = "red") + xlab("Study Grouping") +
       scale_color_manual(values=c("Asymptomatic" = "#24E794", "Mild" = "#41CCE5","Moderate" = "#E7D224",'Severe' = "#E78B24", "Critical" = "#E73924", "Checking" = "#A7A7A7")) + theme(axis.text.x=element_blank())
     ggo
   })
@@ -940,6 +988,24 @@ server <- shinyServer(function(input, output) {
       color = "orange"
     )
   })
+
+  # output$BabsonTable <- renderTable({
+  #   timelinedata <- timelinedata()
+  #   ped <- timelinedata[!duplicated(timelinedata$`Subject ID`), ]
+  #   ped <- ped[ped$Cohort == "Longitudinal", ]
+  #   ped <- ped[ped$`Subject Age` < 18, ]
+  #
+  #   adu <- timelinedata[!duplicated(timelinedata$`Subject ID`), ]
+  #   adu <- adu[adu$Cohort == "Longitudinal", ]
+  #   adu <- adu[adu$`Subject Age` > 18 & adu$`Subject Age` < 65, ]
+  #
+  #   ger <- timelinedata[!duplicated(timelinedata$`Subject ID`), ]
+  #   ger <- ger[ger$Cohort == "Longitudinal", ]
+  #   ger <- ger[ger$`Subject Age` >= 65, ]
+  #
+  #   adu
+  # })
+
 
 
 })
