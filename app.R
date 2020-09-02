@@ -338,12 +338,17 @@ server <- shinyServer(function(input, output) {
       middle <- read.csv(infile$datapath)
     }
     middle <- middle[,sapply(middle, function(x) { sum(!is.na(x)) > 0 })]
+    datetemp <- as.Date((middle$`Date Scheduled`))
     middle$`Date Scheduled` <- as.character(middle$`Date Scheduled`)
+    # datetemp <- as.Date((middle$`Date Scheduled`), format="%Y-%m-%d")
+    # middle$`Date Scheduled` <- format(datetemp, "%Y-%m-%d")
     colnames(middle) <- gsub("Subject ID", "Subject.ID", colnames(middle))
     colnames(middle) <- gsub("Visit #", "Visit..", colnames(middle))
     colnames(middle) <- gsub("Subject Sex", "Subject.Sex", colnames(middle))
     colnames(middle) <- gsub("Subject Age", "Subject.Age", colnames(middle))
     middle <- middle[ middle$`Date Scheduled` == input$dateBarCode, ]
+    middle$DateReformatted <- as.Date(middle$`Date Scheduled`, "%Y-%m-%d")
+    middle$DateReformatted <- format(middle$DateReformatted, "%m-%d-%y")
     if(input$PBMCnum > 0){
       PBMCS <- do.call("rbind", replicate(input$PBMCnum , middle, simplify = FALSE))
       PBMCS$sampletype <- rep.int("PBMCs", times = nrow(PBMCS))
@@ -455,6 +460,7 @@ server <- shinyServer(function(input, output) {
     }
     middle <- middle[,sapply(middle, function(x) { sum(!is.na(x)) > 0 })]
     middle$`Date Scheduled` <- as.character(middle$`Date Scheduled`)
+    middle$`Date Scheduled` <- format(as.Date(middle$`Date Scheduled`), format="%m %d %y")
     colnames(middle) <- gsub("Subject ID", "Subject.ID", colnames(middle))
     colnames(middle) <- gsub("Visit #", "Visit..", colnames(middle))
     colnames(middle) <- gsub("Subject Sex", "Subject.Sex", colnames(middle))
