@@ -30,6 +30,7 @@ ui <- dashboardPage(skin = "blue",
       menuItem("REDBar Tube Report", tabName = "tubereport", icon = icon("vial")),
       menuItem("Important Documents", tabName = "importantdocs", icon = icon("file-alt")),
       menuItem("IMPACC Barcoding App", tabName = "IMPACCbarcodes", icon = icon("barcode"))
+     # menuItem("IMPACC Tube Report", tabName = "IMPACCtubereport", icon = icon("vial"))
     )
   ),
   dashboardBody(tags$style(HTML("
@@ -130,11 +131,12 @@ border-top-color:#666666;
                      selectInput("filetypetube", "What file type do you want to download the output as?", choices = c("Excel", "csv"), selected = "csv"),
                      downloadButton("downloadDatatube", "Download RedCap"),
                      downloadButton("downloadDatatubetracking", "Download Sample Tracking File")
-              ),tabBox(
+              ), tabBox(
                 side = "left", height = "600px",
                 selected = "RedCap", width = 9,
                 tabPanel("RedCap", div(style = 'overflow-x: scroll', tableOutput('tableoutredcap'))),
-                tabPanel("SampleTracking", div(style = 'overflow-x: scroll', tableOutput('redcapsampletrackingout')))
+                tabPanel("SampleTracking", div(style = 'overflow-x: scroll', tableOutput('redcapsampletrackingout'))),
+                tabPanel("testing", div(style = 'overflow-x: scroll', tableOutput('practice')))
               ),
 
             )),
@@ -501,6 +503,16 @@ server <- shinyServer(function(input, output) {
     colnames(middle) <- gsub("Subject Age", "Subject.Age", colnames(middle))
     middle <- middle[ middle$`Date Scheduled` == input$dateTube, ]
     middle <- middle[middle$Subject.ID %in% input$TubeParticipantCheckbox,]
+    ###
+    samplebox <- rep(NA, 1);samplerack <- rep(NA, 1)
+    for(i in 1:length(unique(middle$Subject.ID))){
+      samplebox[i] <- input[[(paste0('samplebox', i))]]
+      samplerack[i] <- input[[(paste0('samplerack', i))]]}
+    samplebox <- as.data.frame(cbind(samplebox, samplerack))
+    samplebox$Subject.ID <- unique(middle$Subject.ID)
+    colnames(samplebox) <- c("sample_box", "sample_rack", "Subject.ID")
+    middle <- merge(middle, samplebox, by = "Subject.ID")
+    ###
 
     if(input$PBMCnumtube == T){
       numberoftubes <- rep(NA, 1)
@@ -615,6 +627,10 @@ server <- shinyServer(function(input, output) {
 
   })
 
+  output$practice <- renderTable({
+    datasetOuttube()
+  })
+
   output$PBMCsSubject <- renderUI({
     out <- datasetOuttimeline()
     out <- out[ out$`Date Scheduled` == input$dateTube, ]
@@ -683,8 +699,8 @@ server <- shinyServer(function(input, output) {
     }
     redcapout$redcap_repeat_instance <- instantout
     redcapout$redcap_repeat_instrument <- "sample_info"
-    redcapout$sample_box <- ""
-    redcapout$sample_rack <- ""
+    # redcapout$sample_box <- ""
+    # redcapout$sample_rack <- ""
     redcapout$sample_box_position <- ""
     redcapout$process_time_v2 <- input$process_time
     redcapout$cryo_vial_pbmc_num_v2 <- ""
@@ -693,6 +709,16 @@ server <- shinyServer(function(input, output) {
     redcapout$sample_vol <- ""
     redcapout$sample_notes_v2 <- ""
     var <- ncol(redcapout)
+    ##-----
+    samplebox <- rep(NA, 1);samplerack <- rep(NA, 1)
+    for(i in 1:length(unique(redcapout$subject_id))){
+      samplebox[i] <- input[[(paste0('samplebox', i))]]
+      samplerack[i] <- input[[(paste0('samplerack', i))]]}
+    samplebox <- as.data.frame(cbind(samplebox, samplerack))
+    samplebox$subject_id <- unique(redcapout$subject_id)
+    colnames(samplebox) <- c("sample_box", "sample_rack", "subject_id")
+    redcapout <- merge(redcapout, samplebox, by = "subject_id")
+    ##-----
     # redcapout$pbmc_num <- NA
     # redcapout$total_plasma_tubes <- NA
     # redcapout$total_serum_tubes <- NA
