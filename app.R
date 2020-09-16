@@ -25,7 +25,7 @@ ui <- dashboardPage(skin = "blue",
       menuItem("Patient Timeline", tabName = "timeline", icon = icon("calendar")),
       menuItem("Study Overviews", tabName = "studyoverview", icon = icon("chart-bar")),
       menuItem("Recruitment Table", tabName = "patienttables", icon = icon("chart-bar")),
-      menuItem("Participant Heatmap", tabName = "participantheatmap"),
+      menuItem("Participant Heatmap", tabName = "participantheatmap", icon = icon("chart-bar")),
       menuItem("REDBar Barcoding App", tabName = "barcodes", icon = icon("barcode")),
       menuItem("REDBar Tube Report", tabName = "tubereport", icon = icon("vial")),
       menuItem("Important Documents", tabName = "importantdocs", icon = icon("file-alt")),
@@ -346,9 +346,9 @@ server <- shinyServer(function(input, output) {
   output$downloadData <- downloadHandler(
     filename = function() {
       if(input$filetype == "Excel"){
-        paste("BarcodeFile.xlsx", sep = "")
+        paste(as.character(input$dateBarCode), "BarcodeFile.xlsx", sep = "-")
       } else if (input$filetype == "csv"){
-        paste("BarcodeFile.csv", sep = "")
+        paste(as.character(input$dateBarCode), "BarcodeFile.csv", sep = "-")
       }
 
     },
@@ -1152,13 +1152,13 @@ server <- shinyServer(function(input, output) {
     checkboxGroupInput("IMPACCpatientselect", label = "Print for which participants?", choices = groups1)
   }) ## End of impaccpatientselect
 
-  output$IMPACCprint <- renderTable({
+  IMPACC <- reactive({
     impaccfiledata <- impaccfiledata()
     impaccfiledata$date <- paste0(impaccfiledata$baseline_date, impaccfiledata$fu_dov, impaccfiledata$esc_date)
     impaccfiledata <- impaccfiledata[ impaccfiledata$studyid %in% input$IMPACCpatientselect,]
-      ageandsex <- impaccfiledata[impaccfiledata$redcap_event_name == "baseline_visit_arm_1",]
-      ageandsex <- ageandsex[,colnames(ageandsex) == "studyid" | colnames(ageandsex) == "sex" | colnames(ageandsex) == "admit_age"]
-     impaccfiledata <- merge(impaccfiledata[,colnames(impaccfiledata) != "sex" & colnames(impaccfiledata) != "admit_age"], ageandsex, by= "studyid")
+    ageandsex <- impaccfiledata[impaccfiledata$redcap_event_name == "baseline_visit_arm_1",]
+    ageandsex <- ageandsex[,colnames(ageandsex) == "studyid" | colnames(ageandsex) == "sex" | colnames(ageandsex) == "admit_age"]
+    impaccfiledata <- merge(impaccfiledata[,colnames(impaccfiledata) != "sex" & colnames(impaccfiledata) != "admit_age"], ageandsex, by= "studyid")
     impaccfiledata <- impaccfiledata[ impaccfiledata$date == input$IMPACCdateBarCode ,]
 
     impaccfiledata$eventnum <- gsub("baseline_visit_arm_1", 1,impaccfiledata$redcap_event_name)
@@ -1223,9 +1223,29 @@ server <- shinyServer(function(input, output) {
     out$ID <- paste("IP",out$studyid, out$barcode_event, out$sampletypenum, out$TubeNum, sep = "-")
 
     outfinal <- out[order(out$studyid, out$barcode_event, out$sampletypenum, as.numeric(out$TubeNum)),]
-    outfinal[,colnames(outfinal) == "ID"|colnames(outfinal) == "studyid"|colnames(outfinal) == "VisitLabel"|colnames(outfinal) == "sampletype"|colnames(outfinal) == "TubeLabel"|colnames(outfinal) == "SexLabel"|colnames(outfinal) == "AgeLabel"]
-
+    outfinal[,colnames(outfinal) == "ID"|colnames(outfinal) == "studyid"|colnames(outfinal) == "VisitLabel"|colnames(outfinal) == "sampletype"|colnames(outfinal) == "TubeLabel"|colnames(outfinal) == "SexLabel"|colnames(outfinal) == "AgeLabel"|colnames(outfinal) == "date"]
   })
+
+  output$IMPACCprint <- renderTable({
+    IMPACC()
+  })
+
+  output$IMPACCdownloadData <- downloadHandler(
+    filename = function() {
+      if(input$filetype == "Excel"){
+        paste(as.character(input$IMPACCdateBarCode),"IPBarcodeFile.xlsx", sep = "_")
+      } else if (input$filetype == "csv"){
+        paste(as.character(input$IMPACCdateBarCode), "IPBarcodeFile.csv", sep = "_")
+      }
+
+    },
+    content = function(file) {
+      if(input$filetype == "Excel"){
+        write_xlsx(IMPACC(), path = file)
+      } else if (input$filetype == "csv"){
+        write.csv(IMPACC(), file, row.names = FALSE)
+      }
+    })
 
 })
 
