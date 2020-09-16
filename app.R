@@ -24,10 +24,12 @@ ui <- dashboardPage(skin = "blue",
       menuItem("Main Dash and Upload", tabName = "maindash", icon = icon("dashboard")),
       menuItem("Patient Timeline", tabName = "timeline", icon = icon("calendar")),
       menuItem("Study Overviews", tabName = "studyoverview", icon = icon("chart-bar")),
+      menuItem("Recruitment Table", tabName = "patienttables", icon = icon("chart-bar")),
       menuItem("Participant Heatmap", tabName = "participantheatmap"),
       menuItem("REDBar Barcoding App", tabName = "barcodes", icon = icon("barcode")),
       menuItem("REDBar Tube Report", tabName = "tubereport", icon = icon("vial")),
-      menuItem("Important Documents", tabName = "importantdocs", icon = icon("file-alt"))
+      menuItem("Important Documents", tabName = "importantdocs", icon = icon("file-alt")),
+      menuItem("IMPACC Barcoding App", tabName = "IMPACCbarcodes", icon = icon("barcode"))
     )
   ),
   dashboardBody(tags$style(HTML("
@@ -57,7 +59,7 @@ border-top-color:#666666;
               checkboxInput(inputId = "ltf", label = "Remove Loss to Follow Up Patients?", value = T),
               fileInput("datafile", "Upload Janelle's file",
                         accept = c("text/csv","text/comma-separated-values,text/plain", ".csv", ".xlsx", ".xlx"))
-            ), tableOutput("BabsonTable")
+            )
 
             ),
     tabItem(tabName = "timeline",
@@ -87,9 +89,13 @@ border-top-color:#666666;
             box(title = "Adult by Sex", solidHeader = TRUE,width =4, collapsible = TRUE, status = "primary", plotOutput("graph9")),
             box(title = "Geriatric by Sex", solidHeader = TRUE,width =4, collapsible = TRUE, status = "warning", plotOutput("graph10")),
             valueBoxOutput("progressBox"),
-            fluidRow(column(12, ),box(title = "Convalescent", solidHeader = TRUE, width =4, collapsible = TRUE, status = "info", plotOutput("graph4")), tableOutput("testing2"))
+            fluidRow(column(12, ),box(title = "Convalescent", solidHeader = TRUE, width =4, collapsible = TRUE, status = "info", plotOutput("graph4")))
             # box(width =8, status = "warning"),
             ),
+    tabItem(tabName="patienttables",
+            fluidRow(
+            box(width=12, div(style = 'overflow-x: scroll', tableOutput('babsontable')))
+            )),##End of patienttables
     tabItem(tabName="barcodes", h2("Barcode Generating App"),
             fluidRow(box(title = "Barcode Report Selection", status = "success", width = 3,
                          dateInput("dateBarCode", "What collection date would you like to export for?"),
@@ -118,13 +124,34 @@ border-top-color:#666666;
                     # numericInput("total_pbmc_tubes", "How many green (heparin) blood tubes were drawn?", value = 4),
                     # numericInput("total_plasma_tubes", "How many lavender (EDTA) blood tubes were drawn?", value = 1),
                     # textInput("processername", "Who processed the tubes?"),
+                 uiOutput("samplerack"),
+                 uiOutput("samplebox"),
                     textInput("process_time", "When were the tubes processed? (please use miltary 24:00 time in CST)"),
                      selectInput("filetypetube", "What file type do you want to download the output as?", choices = c("Excel", "csv"), selected = "csv"),
-                     downloadButton("downloadDatatube", "Download")
+                     downloadButton("downloadDatatube", "Download RedCap"),
+                     downloadButton("downloadDatatubetracking", "Download Sample Tracking File")
+              ),tabBox(
+                side = "left", height = "600px",
+                selected = "RedCap", width = 9,
+                tabPanel("RedCap", div(style = 'overflow-x: scroll', tableOutput('tableoutredcap'))),
+                tabPanel("SampleTracking", div(style = 'overflow-x: scroll', tableOutput('redcapsampletrackingout')))
               ),
-              box(title = "Tube Report", status = "primary", width = 9, div(style = 'overflow-x: scroll', tableOutput('tableoutredcap')))
-            )
-            ),
+
+            )),
+    tabItem(tabName = "IMPACCbarcodes",
+            fluidRow(
+              box(title = "Barcode Report Selection", status = "success", width = 3,
+                  fileInput("IMPACCdatafile", "Upload REDCap Barcode Report",
+                            accept = c("text/csv","text/comma-separated-values,text/plain", ".csv")),
+                  dateInput("IMPACCdateBarCode", "What collection date would you like to print for?"),
+                  uiOutput("IMPACCpatientselect"),
+                  numericInput("IMPACCPBMCnum", "How many tubes of PBMCS?", value = 6),
+                  numericInput("IMPACCSerumnum", "How many tubes of Serum for Us?", value = 6),
+                  numericInput("IMPACCPlasmanum", "How many tubes of Plasma?", value = 6),
+                  selectInput("IMPACCfiletype", "What file type do you want to download the output as?", choices = c("Excel", "csv")),
+                  downloadButton("IMPACCdownloadData", "Download")),
+              box(title = "Barcode Report", status = "primary", width = 9, div(style = 'overflow-x: scroll', tableOutput('IMPACCprint')))
+            )), ## End of IMPACCbarcodes
     tabItem(tabName = "importantdocs", h2("Links to Important Study Documents"),
             tags$a(href="https://austin.maps.arcgis.com/apps/opsdashboard/index.html#/39e4f8d4acb0433baae6d15a931fa984",
                    "Travis County COVID-19 Dashboard"), br(),
@@ -159,6 +186,7 @@ server <- shinyServer(function(input, output) {
 
     datatable(middle, options = list(paging=FALSE))
   })
+
 
 ##---------------------------- Timeline data prep
 
@@ -303,7 +331,13 @@ server <- shinyServer(function(input, output) {
     datawide <- datawide[,c(-1)]
     datameta <- datawide[,1:3]
     datawide <- datawide[,c(-1,-2,-3)]
-    plot1 <- pheatmap(datawide, cluster_rows = F, cluster_cols = F, show_rownames = T, annotation_row = datameta)
+    ann_colors = list(
+      `Subject Sex` = c(Male = "lightblue", Female = "pink"),
+      Severity = c(Asymptomatic = "green", Mild = "blue", Moderate = "yellow", Severe = "orange", Critical = "red")
+
+    )
+
+    plot1 <- pheatmap(datawide, cluster_rows = F, cluster_cols = F, show_rownames = T, annotation_row = datameta, annotation_colors = ann_colors)
     plot1
   })
 
@@ -460,7 +494,7 @@ server <- shinyServer(function(input, output) {
     }
     middle <- middle[,sapply(middle, function(x) { sum(!is.na(x)) > 0 })]
     middle$`Date Scheduled` <- as.character(middle$`Date Scheduled`)
-    middle$`Date Scheduled` <- format(as.Date(middle$`Date Scheduled`), format="%m %d %y")
+    #middle$`Date Scheduled` <- format(as.Date(middle$`Date Scheduled`), format="%m %d %y")
     colnames(middle) <- gsub("Subject ID", "Subject.ID", colnames(middle))
     colnames(middle) <- gsub("Visit #", "Visit..", colnames(middle))
     colnames(middle) <- gsub("Subject Sex", "Subject.Sex", colnames(middle))
@@ -587,8 +621,34 @@ server <- shinyServer(function(input, output) {
     if(input$PBMCnumtube == T){
       groups <- unique(out$`Subject ID`)
       groups1 <- groups[groups %in% input$TubeParticipantCheckbox]
+      groups1 <- sort(groups1)
       lapply(1:(length(unique(groups1))), function(i) {
         numericInput((paste0('PBMCsSubject', i)), label = (paste0('How many tubes of PBMCs for participant ',  groups1[[i]], "?")), value = 10)
+      })
+    }
+  })
+
+  output$samplebox <- renderUI({
+    out <- datasetOuttimeline()
+    out <- out[ out$`Date Scheduled` == input$dateTube, ]
+    if(input$PBMCnumtube == T){
+      groups <- unique(out$`Subject ID`)
+      groups1 <- groups[groups %in% input$TubeParticipantCheckbox]
+      groups1 <- sort(groups1)
+      lapply(1:(length(unique(groups1))), function(i) {
+        textInput((paste0('samplebox', i)), label = (paste0('What box are the tubes from ',  groups1[[i]], " in?")), value = "Box")
+      })
+    }
+  })
+  output$samplerack <- renderUI({
+    out <- datasetOuttimeline()
+    out <- out[ out$`Date Scheduled` == input$dateTube, ]
+    if(input$PBMCnumtube == T){
+      groups <- unique(out$`Subject ID`)
+      groups1 <- groups[groups %in% input$TubeParticipantCheckbox]
+      groups1 <- sort(groups1)
+      lapply(1:(length(unique(groups1))), function(i) {
+        textInput((paste0('samplerack', i)), label = (paste0('What rack are the tubes from ',  groups1[[i]], " in?")), value = "Rack")
       })
     }
   })
@@ -670,6 +730,53 @@ server <- shinyServer(function(input, output) {
       }
     })
 
+  redcapsampletracking <- reactive({
+    barcode <- datasetOuttube()
+    redcapout <- as.data.frame(cbind(barcode$ID, rep_len(as.character(input$dateTube), length(barcode$ID)),
+                                     rep_len(NA, length(barcode$ID))))
+    colnames(redcapout) <- c("tube_id", "process_date", "sample_box_position")
+    redcapout$sampleids <- gsub("-.*", "", redcapout$tube_id)
+    samplebox <- rep(NA, 1);samplerack <- rep(NA, 1)
+    for(i in 1:length(unique(redcapout$sampleids))){
+      samplebox[i] <- input[[(paste0('samplebox', i))]]
+      samplerack[i] <- input[[(paste0('samplerack', i))]]}
+    samplebox <- as.data.frame(cbind(samplebox, samplerack))
+    samplebox$sampleids <- unique(redcapout$sampleids)
+    colnames(samplebox) <- c("sample_box", "sample_rack", "sampleids")
+    finalout <- merge(redcapout, samplebox, by = "sampleids")
+    finalout[,-1]
+   })
+
+  sampleidsactive <- reactive({
+    barcode <- datasetOuttube()
+    redcapout <- as.data.frame(cbind(barcode$ID, rep_len(as.character(input$dateTube), length(barcode$ID)),
+                                     rep_len(NA, length(barcode$ID))))
+    redcapout$sampleids <- gsub("-.*", "", redcapout$tube_id)
+    unique(redcapout$sampleids)
+  })
+
+  output$redcapsampletrackingout <- renderTable({
+    redcapsampletracking()
+  })
+
+  output$downloadDatatubetracking <- downloadHandler(
+    filename = function() {
+      if(input$filetypetube == "Excel"){
+        paste("SampleTrackingFile.xlsx", sep = "")
+      } else if (input$filetypetube == "csv"){
+        paste("SampleTrackingFile.csv", sep = "")
+      }
+
+    },
+    content = function(file) {
+      if(input$filetypetube == "Excel"){
+        write_xlsx(redcapsampletracking(), path = file)
+      } else if (input$filetypetube == "csv"){
+        write.csv(redcapsampletracking(), file, row.names = FALSE)
+      }
+    })
+
+
   ##---------------------------------- Study Completion
   convalescent <- reactive({
     timelinedata <- timelinedata()
@@ -723,7 +830,7 @@ server <- shinyServer(function(input, output) {
     ggo <- ggbarplot(tableped, x = "Severitygrouping", y = "Participants",
                      label = TRUE, lab.col = "white", lab.pos = "in", fill = "Severity", color = "Severity") +
       scale_x_discrete(drop=FALSE) + scale_fill_manual(values=c("Asymptomatic" = "#24E794", "Mild" = "#41CCE5","Moderate" = "#E7D224",'Severe' = "#E78B24", "Critical" = "#E73924")) +
-      ylim(0, 10) + geom_hline(yintercept = 10, linetype="dashed", color = "red") + xlab("Study Grouping") +
+      ylim(0, 14) + geom_hline(yintercept = 10, linetype="dashed", color = "red") + xlab("Study Grouping") +
       scale_color_manual(values=c("Asymptomatic" = "#24E794", "Mild" = "#41CCE5","Moderate" = "#E7D224",'Severe' = "#E78B24", "Critical" = "#E73924")) + theme(axis.text.x=element_blank())
     ggo
   })
@@ -987,24 +1094,138 @@ server <- shinyServer(function(input, output) {
     )
   })
 
-  # output$BabsonTable <- renderTable({
-  #   timelinedata <- timelinedata()
-  #   ped <- timelinedata[!duplicated(timelinedata$`Subject ID`), ]
-  #   ped <- ped[ped$Cohort == "Longitudinal", ]
-  #   ped <- ped[ped$`Subject Age` < 18, ]
-  #
-  #   adu <- timelinedata[!duplicated(timelinedata$`Subject ID`), ]
-  #   adu <- adu[adu$Cohort == "Longitudinal", ]
-  #   adu <- adu[adu$`Subject Age` > 18 & adu$`Subject Age` < 65, ]
-  #
-  #   ger <- timelinedata[!duplicated(timelinedata$`Subject ID`), ]
-  #   ger <- ger[ger$Cohort == "Longitudinal", ]
-  #   ger <- ger[ger$`Subject Age` >= 65, ]
-  #
-  #   adu
-  # })
+  ##----------------------------- Tables
+
+  output$babsontable <- renderTable({
+    infile <- input$datafile
+    if (is.null(infile)) {
+      # User has not uploaded a file yet
+      return(NULL)
+    }
+    if(input$filetypeinput == "Excel"){
+      middle <- read_excel(infile$datapath)
+    } else if (input$filetypeinput == "csv"){
+      middle <- read.csv(infile$datapath)
+    }
+    middle <- middle[,sapply(middle, function(x) { sum(!is.na(x)) > 0 })]
+    if(input$ltf == T){
+      ltf <- middle[middle$LTF == "Y", colnames(middle) == "Subject ID"]
+      ltf<-ltf[!is.na(ltf)]
+      middle <- middle[ !(middle$`Subject ID` %in% ltf ),]
+    }
+    middle <- middle[middle$Cohort == "Longitudinal",]
+    middle$agebin <- middle$`Subject Age`
+    middle$Severity <- gsub("Critical", "store",  middle$Severity)
+    middle$Severity <- gsub("Severe", "store",  middle$Severity)
+    middle$Severity <- gsub("store", "Severe/Critical",  middle$Severity)
+    # middle$agebin[middle$agebin<65] <- "Adult"
+    # middle$agebin[middle$agebin>=65] <- "Geriatric"
+    # middle$agebin[middle$agebin<18] <- "Pediatric"
+    middle <- middle %>% mutate(agebin = case_when(agebin <18 ~ 'Pediatric',
+                                                   agebin >= 18 & agebin < 65 ~ 'Adult',
+                                                   agebin >= 65 ~ 'Geriatric'
+                                                   ))
+ out <- as.data.frame(table(middle$agebin, middle$`Visit #`, middle$Severity))
+ colnames(out) <- c("Age Group", "Visit #", "Severity", "# of Participants")
+ wideout <- pivot_wider(out, id_cols = c("Age Group", "Severity"),names_from = "Visit #", values_from = "# of Participants")
+ colnames(wideout) <- c("Age Group","Severity", "1 Week (1-7 d)", "2 Week (8-14 d)", "4 Week (21-27 d)", "8 Week")
+ wideout
+  })
+
+##----------------------- IMPACC --------------------------
+
+  impaccfiledata <- reactive({
+    infile <- input$IMPACCdatafile
+    if (is.null(infile)) {
+      # User has not uploaded a file yet
+      return(NULL)
+    }
+    middle <- read.csv(infile$datapath)
+    middle
+  })
+
+  output$IMPACCpatientselect <- renderUI({
+    impaccfiledata <- impaccfiledata()
+    impaccfiledata$date <- paste0(impaccfiledata$baseline_date, impaccfiledata$fu_dov, impaccfiledata$esc_date)
+    impaccfiledata <- impaccfiledata[ impaccfiledata$date == input$IMPACCdateBarCode ,]
+    groups1 <- unique(impaccfiledata$studyid)
+    checkboxGroupInput("IMPACCpatientselect", label = "Print for which participants?", choices = groups1)
+  }) ## End of impaccpatientselect
+
+  output$IMPACCprint <- renderTable({
+    impaccfiledata <- impaccfiledata()
+    impaccfiledata$date <- paste0(impaccfiledata$baseline_date, impaccfiledata$fu_dov, impaccfiledata$esc_date)
+    impaccfiledata <- impaccfiledata[ impaccfiledata$studyid %in% input$IMPACCpatientselect,]
+      ageandsex <- impaccfiledata[impaccfiledata$redcap_event_name == "baseline_visit_arm_1",]
+      ageandsex <- ageandsex[,colnames(ageandsex) == "studyid" | colnames(ageandsex) == "sex" | colnames(ageandsex) == "admit_age"]
+     impaccfiledata <- merge(impaccfiledata[,colnames(impaccfiledata) != "sex" & colnames(impaccfiledata) != "admit_age"], ageandsex, by= "studyid")
+    impaccfiledata <- impaccfiledata[ impaccfiledata$date == input$IMPACCdateBarCode ,]
+
+    impaccfiledata$eventnum <- gsub("baseline_visit_arm_1", 1,impaccfiledata$redcap_event_name)
+    impaccfiledata$eventnum <- gsub("visit_2_arm_1", 2,impaccfiledata$eventnum)
+    impaccfiledata$eventnum <- gsub("visit_3_arm_1", 3,impaccfiledata$eventnum)
+    impaccfiledata$eventnum <- gsub("visit_4_arm_1", 4,impaccfiledata$eventnum)
+    impaccfiledata$eventnum <- gsub("visit_5_arm_1", 5,impaccfiledata$eventnum)
+    impaccfiledata$eventnum <- gsub("visit_6_arm_1", 6,impaccfiledata$eventnum)
+    impaccfiledata$eventnum <- gsub("unscheduled_visit_arm_1", "uv",impaccfiledata$eventnum)
+    impaccfiledata$barcode_event <- paste0(impaccfiledata$eventnum, impaccfiledata$redcap_repeat_instance)
+    impaccfiledata$barcode_event <- gsub("NA", "", impaccfiledata$barcode_event)
+    middle <- impaccfiledata
+    ## middle$DateReformatted <- format(middle$DateReformatted, "%m-%d-%y")
+    ###
+
+    if(input$IMPACCPBMCnum > 0){
+      PBMCS <- do.call("rbind", replicate(input$IMPACCPBMCnum , middle, simplify = FALSE))
+      PBMCS$sampletype <- rep.int("PBMCs", times = nrow(PBMCS))
+      PBMCS <- PBMCS[order(PBMCS$studyid), ]
+      PBMCS$TubeNum <- rep.int(1:input$IMPACCPBMCnum, times = nrow(middle))
+      active <- PBMCS
+    }
+
+    if(input$IMPACCPlasmanum > 0){
+      Plasma <- do.call("rbind", replicate(input$IMPACCPlasmanum , middle, simplify = FALSE))
+      Plasma$sampletype <- rep.int("Plasma", times = nrow(Plasma))
+      Plasma <- Plasma[order(Plasma$studyid), ]
+      Plasma$TubeNum <- rep.int(1:input$IMPACCPlasmanum, times = nrow(middle))
+      if(input$PBMCnum < 1){
+        active <- Plasma
+      } else {
+        active <- rbind(active, Plasma)
+      }
+    }
+
+    if(input$IMPACCSerumnum > 0){
+      Serum <- do.call("rbind", replicate(input$IMPACCSerumnum , middle, simplify = FALSE))
+      Serum$sampletype <- rep.int("Serum", times = nrow(Serum))
+      Serum <- Serum[order(Serum$studyid), ]
+      Serum$TubeNum <- rep.int(1:input$IMPACCSerumnum, times = nrow(middle))
+      if(input$PBMCnum < 1 & input$Plasmanum < 1){
+        active <- Serum
+      } else {
+        active <- rbind(active, Serum)
+      }
+    }
+    out <- as.data.frame(active)
+    out$sampletypenum <- out$sampletype
+    out$sampletypenum <- gsub("PBMCs", 3, out$sampletypenum)
+    out$sampletypenum <- gsub("Plasma", 2, out$sampletypenum)
+    out$sampletypenum <- gsub("Serum", 1, out$sampletypenum)
+
+    Subject.Sex.shorthand <- out$sex
+    Subject.Sex.shorthand <-gsub(1,"F",Subject.Sex.shorthand)
+    Subject.Sex.shorthand <-gsub(0,"M",Subject.Sex.shorthand)
 
 
+    out$SexLabel <- paste0("Sex: ", Subject.Sex.shorthand)
+    out$TubeLabel <- paste0("Tube #: ", out$TubeNum)
+    out$AgeLabel <- paste0("Age: ", out$admit_age)
+    out$VisitLabel <- paste0("Visit #: ", out$barcode_event)
+    out$ID <- paste("IP",out$studyid, out$barcode_event, out$sampletypenum, out$TubeNum, sep = "-")
+
+    outfinal <- out[order(out$studyid, out$barcode_event, out$sampletypenum, as.numeric(out$TubeNum)),]
+    outfinal[,colnames(outfinal) == "ID"|colnames(outfinal) == "studyid"|colnames(outfinal) == "VisitLabel"|colnames(outfinal) == "sampletype"|colnames(outfinal) == "TubeLabel"|colnames(outfinal) == "SexLabel"|colnames(outfinal) == "AgeLabel"]
+
+  })
 
 })
 
