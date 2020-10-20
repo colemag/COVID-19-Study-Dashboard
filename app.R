@@ -95,7 +95,8 @@ border-top-color:#666666;
             ),
     tabItem(tabName="patienttables",
             fluidRow(
-            box(width=12, div(style = 'overflow-x: scroll', tableOutput('babsontable')))
+            box(width=12, div(style = 'overflow-x: scroll', tableOutput('babsontable'))),
+            box(width=12, div(style = 'overflow-x: scroll', tableOutput('babsonsextable')))
             )),##End of patienttables
     tabItem(tabName="barcodes", h2("Barcode Generating App"),
             fluidRow(box(title = "Barcode Report Selection", status = "success", width = 3,
@@ -125,6 +126,7 @@ border-top-color:#666666;
                     # numericInput("total_pbmc_tubes", "How many green (heparin) blood tubes were drawn?", value = 4),
                     # numericInput("total_plasma_tubes", "How many lavender (EDTA) blood tubes were drawn?", value = 1),
                     # textInput("processername", "Who processed the tubes?"),
+                 uiOutput("PBMCtubenum"),
                  uiOutput("samplerack"),
                  uiOutput("samplebox"),
                     textInput("process_time", "When were the tubes processed? (please use miltary 24:00 time in CST)"),
@@ -669,6 +671,19 @@ server <- shinyServer(function(input, output) {
     }
   })
 
+  output$PBMCtubenum <- renderUI({
+    out <- datasetOuttimeline()
+    out <- out[ out$`Date Scheduled` == input$dateTube, ]
+    if(input$PBMCnumtube == T){
+      groups <- unique(out$`Subject ID`)
+      groups1 <- groups[groups %in% input$TubeParticipantCheckbox]
+      groups1 <- sort(groups1)
+      lapply(1:(length(unique(groups1))), function(i) {
+        numericInput((paste0('PBMCtubenum', i)), label = (paste0('How many PBMCs are in ',  groups1[[i]], "'s cryovials?")), value = 5000000)
+      })
+    }
+  })
+
   output$TubeParticipantCheckbox <- renderUI({
     out <- datasetOuttimeline()
     out <- out[ out$`Date Scheduled` == input$dateTube, ]
@@ -703,21 +718,36 @@ server <- shinyServer(function(input, output) {
     # redcapout$sample_rack <- ""
     redcapout$sample_box_position <- ""
     redcapout$process_time_v2 <- input$process_time
-    redcapout$cryo_vial_pbmc_num_v2 <- ""
+    #redcapout$cryo_vial_pbmc_num_v2 <- ""
     redcapout$pbmc_viability_v2 <- ""
     redcapout$coagulation_v2 <- ""
     redcapout$sample_vol <- ""
     redcapout$sample_notes_v2 <- ""
     var <- ncol(redcapout)
     ##-----
-    samplebox <- rep(NA, 1);samplerack <- rep(NA, 1)
+    samplebox <- rep(NA, 1);samplerack <- rep(NA, 1);PBMCtubenum <- rep(NA, 1)
     for(i in 1:length(unique(redcapout$subject_id))){
       samplebox[i] <- input[[(paste0('samplebox', i))]]
-      samplerack[i] <- input[[(paste0('samplerack', i))]]}
-    samplebox <- as.data.frame(cbind(samplebox, samplerack))
+      samplerack[i] <- input[[(paste0('samplerack', i))]]
+      PBMCtubenum[i] <- input[[(paste0('PBMCtubenum', i))]]}
+    samplebox <- as.data.frame(cbind(samplebox, samplerack, PBMCtubenum))
     samplebox$subject_id <- unique(redcapout$subject_id)
-    colnames(samplebox) <- c("sample_box", "sample_rack", "subject_id")
+    colnames(samplebox) <- c("sample_box", "sample_rack", "cryo_vial_pbmc_num_v2", "subject_id")
     redcapout <- merge(redcapout, samplebox, by = "subject_id")
+    ## Temporary solution until they are no longer stored on Shelf 2
+    # redcapout <- within(redcapout, sample_rack[sample_type == 1 | sample_type == 2] <- 'Shelf 2')
+    # redcapout <- within(redcapout, sample_box[sample_type == 1 | sample_type == 2] <- '')
+    redcapout$sample_rack <- ifelse(redcapout$sample_type == 1 | redcapout$sample_type == 2, "Shelf 2", as.character(redcapout$sample_rack))
+    redcapout$sample_box <- ifelse(redcapout$sample_type == 1 | redcapout$sample_type == 2, "", as.character(redcapout$sample_box))
+    redcapout$sample_rack <- ifelse(redcapout$tube_number == "B" , "Babson", as.character(redcapout$sample_rack))
+    redcapout$sample_box <- ifelse(redcapout$tube_number == "B" , "Babson", as.character(redcapout$sample_box))
+    redcapout$sample_box_position <- ifelse(redcapout$tube_number == "B" , "Babson", as.character(redcapout$sample_box_position))
+    redcapout$cryo_vial_pbmc_num_v2 <- ifelse(redcapout$sample_type == 1 | redcapout$sample_type == 2, "", as.character(redcapout$cryo_vial_pbmc_num_v2))
+    redcapout$coagulation_v2 <- ifelse(redcapout$sample_type == 1, 1,0)
+
+
+
+    #redcapout[redcapout$sample_type == 1 | redcapout$sample_type == 2, ] <- "Shelf 2"
     ##-----
     # redcapout$pbmc_num <- NA
     # redcapout$total_plasma_tubes <- NA
@@ -770,6 +800,10 @@ server <- shinyServer(function(input, output) {
     samplebox$sampleids <- unique(redcapout$sampleids)
     colnames(samplebox) <- c("sample_box", "sample_rack", "sampleids")
     finalout <- merge(redcapout, samplebox, by = "sampleids")
+    # finalout$sample_rack <- ifelse(barcode$sample_type == 1 | barcode$sample_type == 2, "Shelf 2", as.character(finalout$sample_rack))
+    # finalout$sample_box <- ifelse(barcode$sample_type == 1 | barcode$sample_type == 2, "", as.character(finalout$sample_box))
+    # finalout$sample_rack <- ifelse(barcode$tube_number == "B" , "Babson", as.character(finalout$sample_rack))
+    # finalout$sample_box <- ifelse(barcode$tube_number == "B" , "Babson", as.character(finalout$sample_box))
     finalout[,-1]
    })
 
@@ -803,6 +837,9 @@ server <- shinyServer(function(input, output) {
     })
 
 
+
+
+
   ##---------------------------------- Study Completion
   convalescent <- reactive({
     timelinedata <- timelinedata()
@@ -830,7 +867,7 @@ server <- shinyServer(function(input, output) {
     ggo <- ggbarplot(tableped, x = "Severitygrouping", y = "Participants",
                      label = TRUE, lab.col = "white", lab.pos = "in", fill = "Severity", color = "Severity") +
       scale_x_discrete(drop=FALSE) + scale_fill_manual(values=c("Asymptomatic" = "#24E794", "Mild" = "#41CCE5","Moderate" = "#E7D224",'Severe' = "#E78B24", "Critical" = "#E73924")) +
-      ylim(0, 3) + geom_hline(yintercept = 3, linetype="dashed", color = "red") +  xlab("Study Grouping") +
+      ylim(0, 5) + geom_hline(yintercept = 3, linetype="dashed", color = "red") +  xlab("Study Grouping") +
       scale_color_manual(values=c("Asymptomatic" = "#24E794", "Mild" = "#41CCE5","Moderate" = "#E7D224",'Severe' = "#E78B24", "Critical" = "#E73924")) + theme(axis.text.x=element_blank())
     ggo
   })
@@ -840,7 +877,7 @@ server <- shinyServer(function(input, output) {
     inputdata <- inputdata[inputdata$Cohort == "Longitudinal",]
     inputdata <- inputdata[!duplicated(inputdata$`Subject ID`), ]
     #inputdata$`Date Scheduled` <- as.character((inputdata$`Date Scheduled`))
-    pediatric <- inputdata[inputdata$`Subject Age` > 18 & inputdata$`Subject Age` < 65, ]
+    pediatric <- inputdata[inputdata$`Subject Age` >= 18 & inputdata$`Subject Age` < 65, ]
     tableped <- as.data.frame(table(pediatric$Severity))
     colnames(tableped) <- c("Severity", "Participants")
     tableped$Severity <- factor(tableped$Severity, levels = c("Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
@@ -1010,7 +1047,7 @@ server <- shinyServer(function(input, output) {
     inputdata <- datasetOuttimeline()
     inputdata <- inputdata[inputdata$Cohort == "Longitudinal",]
     inputdata <- inputdata[!duplicated(inputdata$`Subject ID`), ]
-    pediatric <- inputdata[inputdata$`Subject Age` < 65 & inputdata$`Subject Age` > 18, ]
+    pediatric <- inputdata[inputdata$`Subject Age` < 65 & inputdata$`Subject Age` >= 18, ]
     tableped <- as.data.frame(table(pediatric$`Subject Sex`, pediatric$`Severity`))
     colnames(tableped) <- c("Sex","Severity", "Participants")
     tableped$`Sex` <- factor(tableped$`Sex`, levels = c("Male", "Female"))
@@ -1102,7 +1139,7 @@ server <- shinyServer(function(input, output) {
     timelinedata <- timelinedata()
     subjectidtimeline <- timelinedata[!duplicated(timelinedata$`Subject ID`), ]
     subjectidtimeline <- subjectidtimeline[subjectidtimeline$Cohort == "Longitudinal", ]
-    subjectidtimeline <- subjectidtimeline[subjectidtimeline$`Subject Age` > 18 & subjectidtimeline$`Subject Age` < 65, ]
+    subjectidtimeline <- subjectidtimeline[subjectidtimeline$`Subject Age` >= 18 & subjectidtimeline$`Subject Age` < 65, ]
     valueBox(
       nrow(subjectidtimeline), "Longitudinal Adults Enrolled", icon = icon("chart-bar"),
       color = "blue"
@@ -1155,7 +1192,45 @@ server <- shinyServer(function(input, output) {
  colnames(out) <- c("Age Group", "Visit #", "Severity", "# of Participants")
  wideout <- pivot_wider(out, id_cols = c("Age Group", "Severity"),names_from = "Visit #", values_from = "# of Participants")
  colnames(wideout) <- c("Age Group","Severity", "1 Week (1-7 d)", "2 Week (8-14 d)", "4 Week (21-27 d)", "8 Week")
- wideout
+ wideout[order(wideout$`Age Group`, wideout$Severity),]
+  })
+
+  output$babsonsextable <- renderTable({
+    infile <- input$datafile
+    if (is.null(infile)) {
+      # User has not uploaded a file yet
+      return(NULL)
+    }
+    if(input$filetypeinput == "Excel"){
+      middle <- read_excel(infile$datapath)
+    } else if (input$filetypeinput == "csv"){
+      middle <- read.csv(infile$datapath)
+    }
+    middle <- middle[,sapply(middle, function(x) { sum(!is.na(x)) > 0 })]
+    if(input$ltf == T){
+      ltf <- middle[middle$LTF == "Y", colnames(middle) == "Subject ID"]
+      ltf<-ltf[!is.na(ltf)]
+      middle <- middle[ !(middle$`Subject ID` %in% ltf ),]
+    }
+    middle <- middle[middle$Cohort == "Longitudinal",]
+    middle$agebin <- middle$`Subject Age`
+    middle$Severity <- gsub("Critical", "store",  middle$Severity)
+    middle$Severity <- gsub("Severe", "store",  middle$Severity)
+    middle$Severity <- gsub("store", "Severe/Critical",  middle$Severity)
+    # middle$agebin[middle$agebin<65] <- "Adult"
+    # middle$agebin[middle$agebin>=65] <- "Geriatric"
+    # middle$agebin[middle$agebin<18] <- "Pediatric"
+    middle <- middle %>% mutate(agebin = case_when(agebin <18 ~ 'Pediatric',
+                                                   agebin >= 18 & agebin < 65 ~ 'Adult',
+                                                   agebin >= 65 ~ 'Geriatric'
+    ))
+    middle$Sex <- middle$`Subject Sex`
+    out <- as.data.frame(table(middle$agebin, middle$`Visit #`, middle$Severity, middle$Sex))
+    colnames(out) <- c("Age Group", "Visit #", "Severity", "Sex", "# of Participants")
+    wideout <- pivot_wider(out, id_cols = c("Age Group", "Severity", "Sex"),names_from = "Visit #", values_from = "# of Participants")
+    colnames(wideout) <- c("Age Group","Severity", "Sex", "1 Week (1-7 d)", "2 Week (8-14 d)", "4 Week (21-27 d)", "8 Week")
+
+    wideout[order(wideout$`Age Group`, wideout$Sex, wideout$Severity),]
   })
 
 ##----------------------- IMPACC --------------------------
@@ -1253,7 +1328,9 @@ server <- shinyServer(function(input, output) {
   })
 
   output$IMPACCprint <- renderTable({
-    IMPACC()
+    IMPACC <- IMPACC()
+    IMPACC$date <- gsub("NA", "", IMPACC$date)
+    IMPACC
   })
 
   output$IMPACCdownloadData <- downloadHandler(
@@ -1272,6 +1349,16 @@ server <- shinyServer(function(input, output) {
         write.csv(IMPACC(), file, row.names = FALSE)
       }
     })
+
+  ###-------------- Development of faster file automation
+
+  IMPACCREDCap <- reactive({
+    googlesheet <- input$IMPACCgooglesheet
+    IMPACC <- IMPACC()
+
+
+
+  })
 
 })
 
