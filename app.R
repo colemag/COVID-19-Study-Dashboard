@@ -95,8 +95,10 @@ border-top-color:#666666;
             ),
     tabItem(tabName="patienttables",
             fluidRow(
+              box(width=6, selectInput("tablesettings", "What table settings to use?", choices = c("NOSI", "Babson"))),
             box(width=12, div(style = 'overflow-x: scroll', tableOutput('babsontable'))),
-            box(width=12, div(style = 'overflow-x: scroll', tableOutput('babsonsextable')))
+            box(width=12, div(style = 'overflow-x: scroll', tableOutput('babsonsextable'))),
+            box(width=12, div(style = 'overflow-x: scroll', tableOutput('babsonsextable_male')))
             )),##End of patienttables
     tabItem(tabName="barcodes", h2("Barcode Generating App"),
             fluidRow(box(title = "Barcode Report Selection", status = "success", width = 3,
@@ -1192,7 +1194,21 @@ server <- shinyServer(function(input, output) {
  colnames(out) <- c("Age Group", "Visit #", "Severity", "# of Participants")
  wideout <- pivot_wider(out, id_cols = c("Age Group", "Severity"),names_from = "Visit #", values_from = "# of Participants")
  colnames(wideout) <- c("Age Group","Severity", "1 Week (1-7 d)", "2 Week (8-14 d)", "4 Week (21-27 d)", "8 Week")
- wideout[order(wideout$`Age Group`, wideout$Severity),]
+ wideout <- wideout[order(wideout$`Age Group`, wideout$Severity),]
+ if(input$tablesettings == "NOSI"){
+   # wideout$`1 Week (1-7 d)` <- paste0(as.character(wideout$`1 Week (1-7 d)`), "/3")
+   # wideout$`2 Week (8-14 d)` <- paste0(as.character(wideout$`2 Week (8-14 d)`), "/3")
+   # wideout$`4 Week (21-27 d)` <- paste0(as.character(wideout$`4 Week (21-27 d)`), "/3")
+   # wideout$`8 Week` <- paste0(as.character(wideout$`8 Week`), "/3")
+ } else if(input$tablesettings == "Babson"){
+   target_values <- c("/10","/10","/10","/5","/5","/5","/3","/3","/3")
+   wideout$`1 Week (1-7 d)` <- paste0(as.character(wideout$`1 Week (1-7 d)`), target_values)
+   wideout$`2 Week (8-14 d)` <- paste0(as.character(wideout$`2 Week (8-14 d)`), target_values)
+   wideout$`4 Week (21-27 d)` <- paste0(as.character(wideout$`4 Week (21-27 d)`), target_values)
+    wideout$`8 Week` <- paste0(as.character(wideout$`8 Week`), "/0")
+ }
+
+ wideout
   })
 
   output$babsonsextable <- renderTable({
@@ -1217,6 +1233,9 @@ server <- shinyServer(function(input, output) {
     middle$Severity <- gsub("Critical", "store",  middle$Severity)
     middle$Severity <- gsub("Severe", "store",  middle$Severity)
     middle$Severity <- gsub("store", "Severe/Critical",  middle$Severity)
+    middle$Severity <- gsub("Asymptomatic", "store",  middle$Severity)
+    middle$Severity <- gsub("Mild", "store",  middle$Severity)
+    middle$Severity <- gsub("store", "Asymptomatic/Mild",  middle$Severity)
     # middle$agebin[middle$agebin<65] <- "Adult"
     # middle$agebin[middle$agebin>=65] <- "Geriatric"
     # middle$agebin[middle$agebin<18] <- "Pediatric"
@@ -1231,6 +1250,60 @@ server <- shinyServer(function(input, output) {
     colnames(wideout) <- c("Age Group","Severity", "Sex", "1 Week (1-7 d)", "2 Week (8-14 d)", "4 Week (21-27 d)", "8 Week")
 
     wideout[order(wideout$`Age Group`, wideout$Sex, wideout$Severity),]
+  })
+
+  output$babsonsextable_male <- renderTable({
+    infile <- input$datafile
+    if (is.null(infile)) {
+      # User has not uploaded a file yet
+      return(NULL)
+    }
+    if(input$filetypeinput == "Excel"){
+      middle <- read_excel(infile$datapath)
+    } else if (input$filetypeinput == "csv"){
+      middle <- read.csv(infile$datapath)
+    }
+    middle <- middle[,sapply(middle, function(x) { sum(!is.na(x)) > 0 })]
+    if(input$ltf == T){
+      ltf <- middle[middle$LTF == "Y", colnames(middle) == "Subject ID"]
+      ltf<-ltf[!is.na(ltf)]
+      middle <- middle[ !(middle$`Subject ID` %in% ltf ),]
+    }
+    middle <- middle[middle$Cohort == "Longitudinal",]
+    middle$agebin <- middle$`Subject Age`
+    middle$Severity <- gsub("Critical", "store",  middle$Severity)
+    middle$Severity <- gsub("Severe", "store",  middle$Severity)
+    middle$Severity <- gsub("store", "Severe/Critical",  middle$Severity)
+    middle$Severity <- gsub("Asymptomatic", "store",  middle$Severity)
+    middle$Severity <- gsub("Mild", "store",  middle$Severity)
+    middle$Severity <- gsub("store", "Asymptomatic/Mild",  middle$Severity)
+    # middle$agebin[middle$agebin<65] <- "Adult"
+    # middle$agebin[middle$agebin>=65] <- "Geriatric"
+    # middle$agebin[middle$agebin<18] <- "Pediatric"
+    middle <- middle %>% mutate(agebin = case_when(agebin <18 ~ 'Pediatric',
+                                                   agebin >= 18 & agebin < 65 ~ 'Adult',
+                                                   agebin >= 65 ~ 'Geriatric'
+    ))
+    middle$Sex <- middle$`Subject Sex`
+    out <- as.data.frame(table(middle$agebin, middle$`Visit #`, middle$Severity, middle$Sex))
+    colnames(out) <- c("Age Group", "Visit #", "Severity", "Sex", "# of Participants")
+    wideout <- pivot_wider(out, id_cols = c("Age Group", "Severity", "Sex"),names_from = "Visit #", values_from = "# of Participants")
+    colnames(wideout) <- c("Age Group","Severity", "Sex", "1 Week (1-7 d)", "2 Week (8-14 d)", "4 Week (21-27 d)", "8 Week")
+
+    wideout <- wideout[order(wideout$`Age Group`, wideout$Sex, wideout$Severity),]
+    if(input$tablesettings == "NOSI"){
+      wideout$`1 Week (1-7 d)` <- paste0(as.character(wideout$`1 Week (1-7 d)`), "/3")
+      wideout$`2 Week (8-14 d)` <- paste0(as.character(wideout$`2 Week (8-14 d)`), "/3")
+      wideout$`4 Week (21-27 d)` <- paste0(as.character(wideout$`4 Week (21-27 d)`), "/3")
+      wideout$`8 Week` <- paste0(as.character(wideout$`8 Week`), "/3")
+    } else if(input$tablesettings == "Babson"){
+      # wideout$`1 Week (1-7 d)` <- paste0(as.character(wideout$`1 Week (1-7 d)`), "/3")
+      # wideout$`2 Week (8-14 d)` <- paste0(as.character(wideout$`2 Week (8-14 d)`), "/3")
+      # wideout$`4 Week (21-27 d)` <- paste0(as.character(wideout$`4 Week (21-27 d)`), "/3")
+      # wideout$`8 Week` <- paste0(as.character(wideout$`8 Week`), "/0")
+    }
+    wideout <- wideout[wideout$Sex == "Male", ]
+    wideout
   })
 
 ##----------------------- IMPACC --------------------------
@@ -1324,8 +1397,9 @@ server <- shinyServer(function(input, output) {
     out$ID <- paste("IP",out$studyid, out$barcode_event, out$sampletypenum, out$TubeNum, sep = "-")
 
     outfinal <- out[order(out$studyid, out$barcode_event, out$sampletypenum, as.numeric(out$TubeNum)),]
-    outfinal[,colnames(outfinal) == "ID"|colnames(outfinal) == "studyid"|colnames(outfinal) == "VisitLabel"|colnames(outfinal) == "sampletype"|colnames(outfinal) == "TubeLabel"|colnames(outfinal) == "SexLabel"|colnames(outfinal) == "AgeLabel"|colnames(outfinal) == "date"]
-  })
+    outfinal1 <- outfinal[,colnames(outfinal) == "ID"|colnames(outfinal) == "studyid"|colnames(outfinal) == "VisitLabel"|colnames(outfinal) == "sampletype"|colnames(outfinal) == "TubeLabel"|colnames(outfinal) == "SexLabel"|colnames(outfinal) == "AgeLabel"|colnames(outfinal) == "date"]
+    outfinal1[complete.cases(outfinal1), ]
+     })
 
   output$IMPACCprint <- renderTable({
     IMPACC <- IMPACC()
