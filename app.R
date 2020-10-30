@@ -1320,7 +1320,7 @@ server <- shinyServer(function(input, output) {
 
   output$IMPACCpatientselect <- renderUI({
     impaccfiledata <- impaccfiledata()
-    impaccfiledata$date <- paste0(impaccfiledata$baseline_date, impaccfiledata$fu_dov, impaccfiledata$esc_date)
+    impaccfiledata$date <- paste0(impaccfiledata$baseline_date, impaccfiledata$fu_dov, impaccfiledata$esc_date, impaccfiledata$outpt_dov)
     impaccfiledata <- impaccfiledata[ impaccfiledata$date == input$IMPACCdateBarCode ,]
     groups1 <- unique(impaccfiledata$studyid)
     checkboxGroupInput("IMPACCpatientselect", label = "Print for which participants?", choices = groups1)
@@ -1328,7 +1328,7 @@ server <- shinyServer(function(input, output) {
 
   IMPACC <- reactive({
     impaccfiledata <- impaccfiledata()
-    impaccfiledata$date <- paste0(impaccfiledata$baseline_date, impaccfiledata$fu_dov, impaccfiledata$esc_date)
+    impaccfiledata$date <- paste0(impaccfiledata$baseline_date, impaccfiledata$fu_dov, impaccfiledata$esc_date, impaccfiledata$outpt_dov)
     impaccfiledata <- impaccfiledata[ impaccfiledata$studyid %in% input$IMPACCpatientselect,]
     ageandsex <- impaccfiledata[impaccfiledata$redcap_event_name == "baseline_visit_arm_1",]
     ageandsex <- ageandsex[,colnames(ageandsex) == "studyid" | colnames(ageandsex) == "sex" | colnames(ageandsex) == "admit_age"]
