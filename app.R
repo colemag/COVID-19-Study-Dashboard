@@ -1341,6 +1341,10 @@ server <- shinyServer(function(input, output) {
     impaccfiledata$eventnum <- gsub("visit_4_arm_1", 4,impaccfiledata$eventnum)
     impaccfiledata$eventnum <- gsub("visit_5_arm_1", 5,impaccfiledata$eventnum)
     impaccfiledata$eventnum <- gsub("visit_6_arm_1", 6,impaccfiledata$eventnum)
+    impaccfiledata$eventnum <- gsub("3_month_arm_2", "3m",impaccfiledata$eventnum) ## 2/23/21
+    impaccfiledata$eventnum <- gsub("6_month_arm_2", "6m",impaccfiledata$eventnum)
+    impaccfiledata$eventnum <- gsub("9_month_arm_2", "6m",impaccfiledata$eventnum)
+    impaccfiledata$eventnum <- gsub("12_month_arm_2", "12m",impaccfiledata$eventnum)
     impaccfiledata$eventnum <- gsub("unscheduled_visit_arm_1", "uv",impaccfiledata$eventnum)
     impaccfiledata$barcode_event <- paste0(impaccfiledata$eventnum, impaccfiledata$redcap_repeat_instance)
     impaccfiledata$barcode_event <- gsub("NA", "", impaccfiledata$barcode_event)
