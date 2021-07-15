@@ -1,6 +1,6 @@
 ## to run
 # library(shiny)
-# runGitHub( "COVID-19-Study-Dashboard", "colemag")
+#runGitHub( "COVID-19-Study-Dashboard", "colemag")
 
 library(shiny)
 library(writexl)
@@ -16,7 +16,9 @@ library(DT)
 library(ggpubr)
 library(ggplot2)
 library(pheatmap)
-
+require(magick)
+require(grid)
+require(qrcode)
 
 ui <- dashboardPage(skin = "blue",
   dashboardHeader(title = "UT Austin COVID-19", dropdownMenuOutput("messageMenu")),
@@ -160,6 +162,7 @@ border-top-color:#666666;
                   numericInput("IMPACCPlasmanum", "How many tubes of Plasma?", value = 6),
                   selectInput("IMPACCfiletype", "What file type do you want to download the output as?", choices = c("Excel", "csv")),
                   downloadButton("IMPACCdownloadData", "Download")),
+              box(title = "testing remove this", status = "warning", width = 12, downloadButton('testing_IMPACC_label', "testing download")),
               box(title = "Barcode Report", status = "primary", width = 9, div(style = 'overflow-x: scroll', tableOutput('IMPACCprint')))
             )), ## End of IMPACCbarcodes
     tabItem(tabName = "importantdocs", h2("Links to Important Study Documents"),
@@ -1348,7 +1351,7 @@ server <- shinyServer(function(input, output) {
     impaccfiledata$eventnum <- gsub("visit_6_arm_1", 6,impaccfiledata$eventnum)
     impaccfiledata$eventnum <- gsub("3_month_arm_2", "3m",impaccfiledata$eventnum) ## 2/23/21
     impaccfiledata$eventnum <- gsub("6_month_arm_2", "6m",impaccfiledata$eventnum)
-    impaccfiledata$eventnum <- gsub("9_month_arm_2", "6m",impaccfiledata$eventnum)
+    impaccfiledata$eventnum <- gsub("9_month_arm_2", "9m",impaccfiledata$eventnum)
     impaccfiledata$eventnum <- gsub("12_month_arm_2", "12m",impaccfiledata$eventnum)
     impaccfiledata$eventnum <- gsub("unscheduled_visit_arm_1", "uv",impaccfiledata$eventnum)
     impaccfiledata$barcode_event <- paste0(impaccfiledata$eventnum, impaccfiledata$redcap_repeat_instance)
@@ -1415,6 +1418,47 @@ server <- shinyServer(function(input, output) {
     IMPACC$date <- gsub("NA", "", IMPACC$date)
     IMPACC
   })
+
+output$testing_IMPACC_label <- downloadHandler(
+  filename = "testing.pdf",
+  content = function(file) {
+    ggqrcode <- function(text, color="black", alpha=1) {
+      pkg <- "qrcode"
+      require(pkg, character.only = TRUE)
+      x <- qrcode_gen(text, plotQRcode=F, dataOutput=T)
+      x <- as.data.frame(x)
+
+      y <- x
+      y$id <- rownames(y)
+      y <- gather(y, "key", "value", colnames(y)[-ncol(y)])
+      y$key = factor(y$key, levels=rev(colnames(x)))
+      y$id = factor(y$id, levels=rev(rownames(x)))
+
+      ggplot(y, aes_(x=~id, y=~key)) + geom_tile(aes_(fill=~value), alpha=alpha) +
+        scale_fill_gradient(low="white", high=color) +
+        theme_void() + theme(legend.position='none')
+    } # https://github.com/GuangchuangYu/yyplot/blob/master/R/ggqrcode.R
+
+    # Generate the image_graph
+    barcode <- image_graph(width = 400, height = 400, res = 10000)
+    ggqrcode("IP015-0025-2-3-1")
+    dev.off()
+
+    full_label <- tempfile(fileext = '.pdf')
+    pdf(full_label, width = 1, height = 1)
+    testing_dev <- ggplot() +
+      geom_text(data=NULL, aes(x=0,y=1.8,label="015-0025 Visit 7"),size=2,vjust=0.5, color='black', angle=0) +
+      geom_text(data=NULL, aes(x=0,y=1.6,label="10/2/21"),size=2,vjust=0.5, color='black', angle=0) +
+      geom_text(data=NULL, aes(x=0,y=0.65,label="100-1-2-3-1"),size=2,vjust=0.5, color='black', angle=0) +
+      geom_text(data=NULL, aes(x=0,y=0.4,label="Serum, Tube 1"),size=2,vjust=0.5, color='black', angle=0) +
+      coord_cartesian(xlim= c(-1,1), ylim = c(0,2)) +
+      theme_void()
+    plot(testing_dev)
+    grid.raster(barcode, width = unit(0.3, "npc"), y = unit(0.55, "npc") )
+    dev.off()
+  }
+)
+
 
   output$IMPACCdownloadData <- downloadHandler(
     filename = function() {
