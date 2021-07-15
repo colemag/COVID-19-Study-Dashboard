@@ -468,6 +468,7 @@ server <- shinyServer(function(input, output) {
     out$sampletypenum <- gsub("Whole Blood", 0, out$sampletypenum)
 
     out$sitenum <- out$Site
+    out$sitenum <- gsub("SMCA", 5, out$sitenum)
     out$sitenum <- gsub("DSMC", 1, out$sitenum)
     out$sitenum <- gsub("DCMC", 2, out$sitenum)
     out$sitenum <- gsub("UTHA", 3, out$sitenum)
@@ -618,6 +619,7 @@ server <- shinyServer(function(input, output) {
     out$sampletypenum <- gsub("Whole Blood", 0, out$sampletypenum)
 
     out$sitenum <- out$Site
+    out$sitenum <- gsub("SMCA", 5, out$sitenum)
     out$sitenum <- gsub("DSMC", 1, out$sitenum)
     out$sitenum <- gsub("DCMC", 2, out$sitenum)
     out$sitenum <- gsub("UTHA", 3, out$sitenum)
