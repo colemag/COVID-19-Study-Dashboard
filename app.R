@@ -472,7 +472,7 @@ server <- shinyServer(function(input, output) {
     out$sitenum <- gsub("DSMC", 1, out$sitenum)
     out$sitenum <- gsub("DCMC", 2, out$sitenum)
     out$sitenum <- gsub("UTHA", 3, out$sitenum)
-    out$sitenum <- gsub("[^123]+", 4, out$sitenum)
+    out$sitenum <- gsub("[^1235]+", 4, out$sitenum)
     #out$sitenum <- gsub("[4]+", 4, out$sitenum)
 
     Subject.Sex.shorthand <- out$Subject.Sex
@@ -623,7 +623,7 @@ server <- shinyServer(function(input, output) {
     out$sitenum <- gsub("DSMC", 1, out$sitenum)
     out$sitenum <- gsub("DCMC", 2, out$sitenum)
     out$sitenum <- gsub("UTHA", 3, out$sitenum)
-    out$sitenum <- gsub("[^123]+", 4, out$sitenum)
+    out$sitenum <- gsub("[^1235]+", 4, out$sitenum)
     #out$sitenum <- gsub("[4]+", 4, out$sitenum)
 
     Subject.Sex.shorthand <- out$Subject.Sex
