@@ -484,7 +484,7 @@ server <- shinyServer(function(input, output) {
     out$TubeLabel <- paste0("Tube #: ", out$TubeNum)
     out$AgeLabel <- paste0("Age: ", out$Subject.Age)
     out$VisitLabel <- paste0("Visit #: ", out$Visit..)
-    out[out$Visit == "Unscheduled", "Visit.."] <- "u1"
+    #out[out$Visit == "Unscheduled", "Visit.."] <- "u1"
     out$ID <- paste(out$Subject.ID, out$Visit.., out$sitenum, out$sampletypenum, out$TubeNum, sep = "-")
 
     out[order(out$Subject.ID, out$Visit.., out$sitenum, out$sampletypenum, as.numeric(out$TubeNum)),]
