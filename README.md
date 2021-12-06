@@ -19,4 +19,4 @@ DT,
 ggpubr,
 ggplot2
 
-If you get errors you can email Cole (colemag@utexas.edu).
+
