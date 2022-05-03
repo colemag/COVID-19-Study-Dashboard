@@ -35,7 +35,8 @@ ui <- dashboardPage(skin = "blue",
       menuItem("REDBar Barcoding App", tabName = "barcodes", icon = icon("barcode")),
       menuItem("REDBar Tube Report", tabName = "tubereport", icon = icon("vial")),
       menuItem("Important Documents", tabName = "importantdocs", icon = icon("file-alt")),
-      menuItem("IMPACC Barcoding App", tabName = "IMPACCbarcodes", icon = icon("barcode"))
+      menuItem("IMPACC Barcoding App", tabName = "IMPACCbarcodes", icon = icon("barcode")),
+      menuItem("PASC & IVIG Barcoding App", tabName = "PASCbarcodes", icon = icon("barcode"))
      # menuItem("IMPACC Tube Report", tabName = "IMPACCtubereport", icon = icon("vial"))
     )
   ),
@@ -165,6 +166,16 @@ border-top-color:#666666;
               box(title = "testing remove this", status = "warning", width = 12, downloadButton('testing_IMPACC_label', "testing download")),
               box(title = "Barcode Report", status = "primary", width = 9, div(style = 'overflow-x: scroll', tableOutput('IMPACCprint')))
             )), ## End of IMPACCbarcodes
+    tabItem(tabName="PASCbarcodes", h2("PASC & IVIG Barcode Generating App"),
+            fluidRow(box(title = "Barcode Report Selection", status = "success", width = 3,
+                         dateInput("dateBarCode_PASC", "What collection date would you like to export for?"),
+                         numericInput("Serumnum_PASC", "How many tubes of Serum for Us?", value = 6),
+                         
+                         numericInput("Plasmanum_PASC", "How many tubes of Plasma?", value = 6),
+                         selectInput("filetype_PASC", "What file type do you want to download the output as?", choices = c("Excel", "csv")),
+                         downloadButton("downloadData_PASC", "Download")),
+                     box(title = "Barcode Report", status = "primary", width = 9, div(style = 'overflow-x: scroll', tableOutput('tableout_PASC')))
+            )), ## END of PASCbarcodes
     tabItem(tabName = "importantdocs", h2("Links to Important Study Documents"),
             tags$a(href="https://austin.maps.arcgis.com/apps/opsdashboard/index.html#/39e4f8d4acb0433baae6d15a931fa984",
                    "Travis County COVID-19 Dashboard"), br(),
@@ -494,6 +505,112 @@ server <- shinyServer(function(input, output) {
   output$tableout <- renderTable({
     datasetOut()
   })
+  
+  ############################### 5/2/2022
+  ##---------------------------------- Barcodes PASC & IVIG
+  output$downloadData_PASC <- downloadHandler(
+    filename = function() {
+      if(input$filetype_PASC == "Excel"){
+        paste(as.character(input$dateBarCode_PASC), "BarcodeFile.xlsx", sep = "-")
+      } else if (input$filetype_PASC == "csv"){
+        paste(as.character(input$dateBarCode_PASC), "BarcodeFile.csv", sep = "-")
+      }
+      
+    },
+    content = function(file) {
+      if(input$filetype_PASC == "Excel"){
+        write_xlsx(datasetOut_PASC(), path = file)
+      } else if (input$filetype_PASC == "csv"){
+        write.csv(datasetOut_PASC(), file, row.names = FALSE)
+      }
+    })
+  
+  datasetOut_PASC <- reactive({
+    infile <- input$datafile
+    if (is.null(infile)) {
+      # User has not uploaded a file yet
+      return(NULL)
+    }
+    if(input$filetypeinput == "Excel"){
+      middle <- read_excel(infile$datapath)
+    } else if (input$filetypeinput == "csv"){
+      middle <- read.csv(infile$datapath)
+    }
+    middle <- middle[,sapply(middle, function(x) { sum(!is.na(x)) > 0 })]
+    datetemp <- as.Date((middle$`Date Scheduled`))
+    middle$`Date Scheduled` <- as.character(middle$`Date Scheduled`)
+    # datetemp <- as.Date((middle$`Date Scheduled`), format="%Y-%m-%d")
+    # middle$`Date Scheduled` <- format(datetemp, "%Y-%m-%d")
+    colnames(middle) <- gsub("Subject ID", "Subject.ID", colnames(middle))
+    colnames(middle) <- gsub("Visit #", "Visit..", colnames(middle))
+    colnames(middle) <- gsub("Subject Sex", "Subject.Sex", colnames(middle))
+    colnames(middle) <- gsub("Subject Age", "Subject.Age", colnames(middle))
+    middle <- middle[ middle$`Date Scheduled` == input$dateBarCode, ]
+    middle$DateReformatted <- as.Date(middle$`Date Scheduled`, "%Y-%m-%d")
+    middle$DateReformatted <- format(middle$DateReformatted, "%m-%d-%y")
+    
+    if(input$Plasmanum_PASC > 0){
+      Plasma <- do.call("rbind", replicate(input$Plasmanum_PASC , middle, simplify = FALSE))
+      Plasma$sampletype <- rep.int("Plasma", times = nrow(Plasma))
+      Plasma <- Plasma[order(Plasma$Subject.ID), ]
+      Plasma$TubeNum <- rep.int(1:input$Plasmanum, times = nrow(middle))
+        active <- Plasma
+    }
+    
+    if(input$Serumnum_PASC > 0){
+      Serum <- do.call("rbind", replicate(input$Serumnum_PASC , middle, simplify = FALSE))
+      Serum$sampletype <- rep.int("Serum", times = nrow(Serum))
+      Serum <- Serum[order(Serum$Subject.ID), ]
+      Serum$TubeNum <- rep.int(1:input$Serumnum, times = nrow(middle))
+      if(input$Plasmanum < 1){
+        active <- Serum
+      } else {
+        active <- rbind(active, Serum)
+      }
+      
+    }
+    
+    
+    out <- as.data.frame(active)
+    
+    out$sampletypenum <- out$sampletype
+    out$sampletypenum <- gsub("Plasma", 2, out$sampletypenum)
+    out$sampletypenum <- gsub("Serum", 1, out$sampletypenum)
+    
+    
+    Subject.Sex.shorthand <- out$Subject.Sex
+    Subject.Sex.shorthand <-gsub("emale.*","",Subject.Sex.shorthand)
+    Subject.Sex.shorthand <-gsub("ale.*","",Subject.Sex.shorthand)
+    
+    
+    out$SexLabel <- paste0("Sex: ", Subject.Sex.shorthand)
+    out$TubeLabel <- paste0("Tube #: ", out$TubeNum)
+    out$AgeLabel <- paste0("Age: ", out$Subject.Age)
+    out$VisitLabel <- paste0("Visit #: ", out$Visit..)
+    #out[out$Visit == "Unscheduled", "Visit.."] <- "u1"
+    out$ID <- paste(out$Subject.ID, out$Visit.., out$sampletypenum, out$TubeNum, sep = "-")
+    
+    out[order(out$Subject.ID, out$Visit.., out$sampletypenum, as.numeric(out$TubeNum)),]
+    
+  })
+  
+  output$tableout_PASC <- renderTable({
+    datasetOut_PASC()
+  })
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  ###########################
+  
+  
+  
+  
 
   ##-------------------------------- Tube
   datasetOuttube <- reactive({
