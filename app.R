@@ -545,7 +545,7 @@ server <- shinyServer(function(input, output) {
     colnames(middle) <- gsub("Visit #", "Visit..", colnames(middle))
     colnames(middle) <- gsub("Subject Sex", "Subject.Sex", colnames(middle))
     colnames(middle) <- gsub("Subject Age", "Subject.Age", colnames(middle))
-    middle <- middle[ middle$`Date Scheduled` == input$dateBarCode, ]
+    middle <- middle[ middle$`Date Scheduled` == input$dateBarCode_PASC, ]
     middle$DateReformatted <- as.Date(middle$`Date Scheduled`, "%Y-%m-%d")
     middle$DateReformatted <- format(middle$DateReformatted, "%m-%d-%y")
     
@@ -553,7 +553,7 @@ server <- shinyServer(function(input, output) {
       Plasma <- do.call("rbind", replicate(input$Plasmanum_PASC , middle, simplify = FALSE))
       Plasma$sampletype <- rep.int("Plasma", times = nrow(Plasma))
       Plasma <- Plasma[order(Plasma$Subject.ID), ]
-      Plasma$TubeNum <- rep.int(1:input$Plasmanum, times = nrow(middle))
+      Plasma$TubeNum <- rep.int(1:input$Plasmanum_PASC, times = nrow(middle))
         active <- Plasma
     }
     
@@ -561,8 +561,8 @@ server <- shinyServer(function(input, output) {
       Serum <- do.call("rbind", replicate(input$Serumnum_PASC , middle, simplify = FALSE))
       Serum$sampletype <- rep.int("Serum", times = nrow(Serum))
       Serum <- Serum[order(Serum$Subject.ID), ]
-      Serum$TubeNum <- rep.int(1:input$Serumnum, times = nrow(middle))
-      if(input$Plasmanum < 1){
+      Serum$TubeNum <- rep.int(1:input$Serumnum_PASC, times = nrow(middle))
+      if(input$Plasmanum_PASC < 1){
         active <- Serum
       } else {
         active <- rbind(active, Serum)
