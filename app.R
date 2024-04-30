@@ -158,9 +158,9 @@ border-top-color:#666666;
                             accept = c("text/csv","text/comma-separated-values,text/plain", ".csv")),
                   dateInput("IMPACCdateBarCode", "What collection date would you like to print for?"),
                   uiOutput("IMPACCpatientselect"),
-                  numericInput("IMPACCPBMCnum", "How many tubes of PBMCS?", value = 6),
-                  numericInput("IMPACCSerumnum", "How many tubes of Serum for Us?", value = 6),
-                  numericInput("IMPACCPlasmanum", "How many tubes of Plasma?", value = 6),
+                  numericInput("IMPACCPBMCnum", "How many tubes of PBMCS?", value = 10),
+                  numericInput("IMPACCSerumnum", "How many tubes of Serum for Us?", value = 7),
+                  numericInput("IMPACCPlasmanum", "How many tubes of Plasma?", value = 7),
                   selectInput("IMPACCfiletype", "What file type do you want to download the output as?", choices = c("Excel", "csv")),
                   downloadButton("IMPACCdownloadData", "Download")),
               box(title = "testing remove this", status = "warning", width = 12, downloadButton('testing_IMPACC_label', "testing download")),
@@ -169,9 +169,9 @@ border-top-color:#666666;
     tabItem(tabName="PASCbarcodes", h2("PASC & IVIG Barcode Generating App"),
             fluidRow(box(title = "Barcode Report Selection", status = "success", width = 3,
                          dateInput("dateBarCode_PASC", "What collection date would you like to export for?"),
-                         numericInput("Serumnum_PASC", "How many tubes of Serum for Us?", value = 6),
+                         numericInput("Serumnum_PASC", "How many tubes of Serum for Us?", value = 7),
                          
-                         numericInput("Plasmanum_PASC", "How many tubes of Plasma?", value = 6),
+                         numericInput("Plasmanum_PASC", "How many tubes of Plasma?", value = 7),
                          selectInput("filetype_PASC", "What file type do you want to download the output as?", choices = c("Excel", "csv")),
                          downloadButton("downloadData_PASC", "Download")),
                      box(title = "Barcode Report", status = "primary", width = 9, div(style = 'overflow-x: scroll', tableOutput('tableout_PASC')))
@@ -496,9 +496,9 @@ server <- shinyServer(function(input, output) {
     out$AgeLabel <- paste0("Age: ", out$Subject.Age)
     out$VisitLabel <- paste0("Visit #: ", out$Visit..)
     #out[out$Visit == "Unscheduled", "Visit.."] <- "u1"
-    out$ID <- paste(out$Subject.ID, out$Visit.., out$sitenum, out$sampletypenum, out$TubeNum, sep = "-")
+    out$ID <- paste(out$Subject.ID, out$Visit.., out$sampletypenum, out$TubeNum, sep = "-") #out$sitenum,
 
-    out[order(out$Subject.ID, out$Visit.., out$sitenum, out$sampletypenum, as.numeric(out$TubeNum)),]
+    out[order(out$Subject.ID, out$Visit.., out$sampletypenum, as.numeric(out$TubeNum)),] #out$sitenum, 
 
   })
 
